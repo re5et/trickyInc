@@ -27,20 +27,24 @@ class trickyInc {
 		// default constants files to include, comma seperated without file extensions
 		$this->options->constants = '';
 		
+		// default stylesheets to include, comma seperated without file extensions
+		$this->options->inc = '';	
+		
 		// exclude any file containing any of these
 		// applys to includes, filters, constants
 		$this->options->exclude = array(
-			'.tmp', '.svn', '.project'
-		);
-		
-		// default stylesheets to include, comma seperated without file extensions
-		$this->options->inc = '';	
+			'.tmp', '.svn', '.project', '.bak'
+		);		
 		
 		// say thanks via a comment at the very bottom of your final output
 		$this->options->plug = false;
 		
+		// disables overrides from the query string
+		$this->allow_query_string_override = true;
+		
 		// check for option overrides in the query string
-		$this->set_options();
+		if(!$this->allow_query_string_override)
+			$this->set_options();
 		
 		// get the browser information if available
 		$this->browser = $this->get_browser();
@@ -55,7 +59,7 @@ class trickyInc {
 		
 		// loop through the options, if any of them are in the query string override
 		foreach($this->options as $k => $v){
-			if(isset($_GET[$k])){
+			if(isset($_GET[$k]) && !is_array($this->options->{$k})){
 				// this bit here makes sure that if you want something false it is
 				$false = array('n', 'no', '0', 'false');
 				if(in_array(strtolower($_GET[$k]), $false))
