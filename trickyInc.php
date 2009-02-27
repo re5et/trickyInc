@@ -4,6 +4,8 @@ class trickyInc {
 	
 	function __construct($type = false){
 		
+		$this->start_time = microtime(true);
+		
 		// gotta have this, 'css' or 'js'
 		if(!$type)
 			return;
@@ -37,7 +39,9 @@ class trickyInc {
 		);		
 		
 		// say thanks via a comment at the very bottom of your final output
-		$this->options->plug = false;
+		$this->options->plug = true;
+		
+		$this->options->show_generated_time = true;
 		
 		// disables overrides from the query string
 		$this->allow_query_string_override = true;
@@ -55,7 +59,6 @@ class trickyInc {
 		// if trickyInc has been instantiated, and its not by an extension, do ouput
 		if(__CLASS__ == get_class($this))
 			$this->output();
-		
 	}
 	
 	function set_options(){
@@ -76,7 +79,7 @@ class trickyInc {
 		
 		// check if caching is on, and cache dir can be written in
 		if($this->options->cache && !is_writeable('cache/')){
-			$this->open_comment('cannot write cache, check the permissions on that directory');
+			$this->comment('cannot write cache, check the permissions on that directory');
 			// if not, turn caching off
 			$this->options->cache = false;
 		}
@@ -150,6 +153,10 @@ class trickyInc {
 			
 		}
 		
+		// we are done at this point, so show how long
+		if($this->options->show_generated_time)
+			$this->show_generated_time();
+		
 	}
 	
 	function get_browser(){
@@ -204,9 +211,9 @@ class trickyInc {
 	
 	function reset(){
 		
-		$this->open_comment("css reset, via the king, http://meyerweb.com/eric/thoughts/2007/05/01/reset-reloaded/");
+		$this->comment("css reset, via the king, http://meyerweb.com/eric/thoughts/2007/05/01/reset-reloaded/");
 		echo 'html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-weight:inherit;font-style:inherit;font-size:100%;font-family:inherit;vertical-align:baseline}:focus{outline:0}body{line-height:1;color:black;background:white}ol,ul{list-style:none}table{border-collapse:separate;border-spacing:0}caption,th,td{text-align:left;font-weight:normal}blockquote:before,blockquote:after,q:before,q:after{content:""}blockquote,q{quotes:""""}' . "\n";
-		$this->close_comment("end of css reset");
+		$this->comment("end of css reset");
 		
 	}
 	
@@ -261,9 +268,9 @@ class trickyInc {
 				if($this->browser_conditions)
 					$contents = $this->browser_conditionals($contents);					
 				
-				$this->open_comment("included from $file");
+				$this->comment("included from $file");
 				echo $contents;
-				$this->close_comment("end of $file");
+				$this->comment("end of $file");
 			}
 		}
 		
@@ -331,7 +338,7 @@ class trickyInc {
 	// thank yous are always welcome
 	function plug(){
 		
-		$this->open_comment("had some help from trickyInc: http://code.google.com/p/trickyinc/");
+		$this->comment("had some help from trickyInc: http://code.google.com/p/trickyinc/");
 		
 	}
 	
@@ -353,21 +360,20 @@ class trickyInc {
 		
 	}
 	
-	// opening comment, padded appropriately
-	function open_comment($str){
+	function show_generated_time(){
+		$current_time = microtime(true);
 		
-		// check to see if comments are on
-		if($this->options->comments)
-			echo '/* ' . str_pad($str . " ", 77, '*') . "*/\n\n";
+		$time_passed = $current_time - $this->start_time;
 		
+		$this->comment("Generated in $time_passed seconds.");
 	}
 	
-	// closing comment, padded appropriately
-	function close_comment($str){
+	// comment, padded appropriately
+	function comment($str){
 		
 		// check to see if comments are on
 		if($this->options->comments)
-			echo "\n\n/* " . str_pad($str . " ", 77, '*') . "*/\n\n\n\n";
+			echo "\n/* " . str_pad($str . " ", 77, '*') . "*/\n";
 		
 	}
 	
