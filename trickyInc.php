@@ -49,6 +49,9 @@ class trickyInc {
 		// get the browser information if available
 		$this->browser = $this->get_browser();
 		
+		// parse out browser based conditionals
+		$this->browser_conditions = true;
+		
 		// if trickyInc has been instantiated, and its not by an extension, do ouput
 		if(__CLASS__ == get_class($this))
 			$this->output();
@@ -150,11 +153,53 @@ class trickyInc {
 	}
 	
 	function get_browser(){
-		// if capable, get browser information, mostly to be used in filters
-		if(ini_get("browscap"))
-    		return get_browser(null, true);
-		else
-			return false;
+		$agent = strtolower($_SERVER['HTTP_USER_AGENT']);
+
+		// Identify the browser. Check Opera and Safari first in case of spoof. Let Google Chrome be identified as Safari.
+		if (preg_match('/opera/', $agent)) {
+			$name = 'opera';
+		}
+		elseif (preg_match('/webkit/', $agent)) {
+			$name = 'safari';
+		}
+		elseif (preg_match('/msie/', $agent)) {
+			$name = 'ie';
+		}
+		elseif (preg_match('/mozilla/', $agent) && !preg_match('/compatible/', $agent)) {
+			$name = 'mozilla';
+		}
+		else {
+			$name = 'unrecognized';
+		}
+
+		// What version?
+		if (preg_match('/.+(?:rv|it|ra|ie)[\/: ]([\d.]+)/', $agent, $matches)) {
+			$version = substr($matches[1],0,1);
+		}
+		else {
+			$version = 'unknown';
+		}
+
+		// Running on what platform?
+		if (preg_match('/linux/', $agent)) {
+			$platform = 'linux';
+		}
+		elseif (preg_match('/macintosh|mac os x/', $agent)) {
+			$platform = 'mac';
+		}
+		elseif (preg_match('/windows|win32/', $agent)) {
+			$platform = 'windows';
+		}
+		else {
+			$platform = 'unrecognized';
+		}
+
+		return array(
+			'name' => $name,
+			'version' => $version,
+			'platform' => $platform,
+			'userAgent' => $agent
+		);		
 	}
 	
 	function reset(){
@@ -212,6 +257,10 @@ class trickyInc {
 				if($this->options->filter)
 					$this->filters($contents);
 				
+				// if browser conditionals are on, parse them out
+				if($this->browser_conditions)
+					$contents = $this->browser_conditionals($contents);					
+				
 				$this->open_comment("included from $file");
 				echo $contents;
 				$this->close_comment("end of $file");
@@ -254,6 +303,31 @@ class trickyInc {
 				}
 		
 	}
+	
+	// check for and handle browser conditionals
+	function browser_conditionals($contents){
+		if(!strpos($contents, ':if('))
+			return $contents;
+		else{
+			$there_are_conditions = preg_match_all('/(:if\(([^)]+)\):)((.(?!:endif:))+)/is', $contents, $matches);
+			if($there_are_conditions){
+				foreach($matches[2] as $key => $value){
+					$browser = explode(' ', $value);
+					if($browser[0] != $this->browser['name']){
+						$contents = str_replace($matches[3][$key], '', $contents);
+					}
+					elseif(array_key_exists(1, $browser)){
+						if($browser[1] != $this->browser['version'])
+							$contents = str_replace($matches[3][$key], '', $contents);
+					}
+					$contents = str_replace($matches[1][$key], '', $contents);
+				}
+				$contents = str_replace(':endif:', '', $contents);
+			}
+		}
+		print_r($this->browser);
+		return $contents;
+	}	
 	
 	// thank yous are always welcome
 	function plug(){
