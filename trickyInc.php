@@ -43,7 +43,7 @@ class trickyInc {
 		$this->allow_query_string_override = true;
 		
 		// check for option overrides in the query string
-		if(!$this->allow_query_string_override)
+		if($this->allow_query_string_override)
 			$this->set_options();
 		
 		// get the browser information if available
@@ -212,8 +212,8 @@ class trickyInc {
 	
 	function constants(){
 		
-		foreach($this->options->constants as $constants){
-			$file = 'constants/' . $constants . '.php';
+		foreach($this->options->constants as $to_include){
+			$file = 'constants/' . $to_include . '.php';
 			if($this->file_check($file)){
 				require_once($file);
 				foreach($constants as $k => $v)
@@ -322,10 +322,9 @@ class trickyInc {
 					}
 					$contents = str_replace($matches[1][$key], '', $contents);
 				}
-				$contents = str_replace(':endif:', '', $contents);
+				$contents = str_replace(":endif:", '', $contents);
 			}
 		}
-		print_r($this->browser);
 		return $contents;
 	}	
 	
