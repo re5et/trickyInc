@@ -4,6 +4,7 @@ class trickyInc {
 	
 	function __construct($type = false){
 		
+		// grab starting time for profiling
 		$this->start_time = microtime(true);
 		
 		// gotta have this, 'css' or 'js'
@@ -13,6 +14,9 @@ class trickyInc {
 		$this->type = $type;
 		
 		// setup the default options, if you want different defaults, change them here
+		
+// The following options can be overridden via the query string assuming 
+// that $this->allow_query_string_override == true
 		
 		// include the browser styles reset before all other content (css only)
 		$this->options->reset = true;
@@ -24,6 +28,7 @@ class trickyInc {
 		$this->options->comments = true;
 
 		// how many seconds to wait for a content refresh
+		// false / 0 turns caching off
 		$this->options->cache = false;
 		
 		// default constants files to include, comma seperated without file extensions
@@ -41,20 +46,28 @@ class trickyInc {
 		// say thanks via a comment at the very bottom of your final output
 		$this->options->plug = true;
 		
+		// enables / disables output of a comment at the bottom of final output
+		// showing how long it took trickyInc to complete execution
 		$this->options->show_generated_time = true;
 		
-		// disables overrides from the query string
+// The rest of the options here cannot be overridden via the query string. //
+		
+		// enables / disables overrides from the query string
 		$this->allow_query_string_override = true;
+		
+		// enables / disables output compression
+		// at the moment this is only runs for css
+		$this->compress_output = true;
+		
+		// enables / disables parsing of browser based conditionals
+		$this->browser_conditions = true;
 		
 		// check for option overrides in the query string
 		if($this->allow_query_string_override)
 			$this->set_options();
-		
-		// get the browser information if available
+			
+		// grab some information about the browser
 		$this->browser = $this->get_browser();
-		
-		// parse out browser based conditionals
-		$this->browser_conditions = true;
 		
 		// if trickyInc has been instantiated, and its not by an extension, do ouput
 		if(__CLASS__ == get_class($this))
@@ -83,6 +96,7 @@ class trickyInc {
 			// if not, turn caching off
 			$this->options->cache = false;
 		}
+
 	}
 	
 	// calls individual methods to output stylesheet content
@@ -266,7 +280,7 @@ class trickyInc {
 				
 				// if browser conditionals are on, parse them out
 				if($this->browser_conditions)
-					$contents = $this->browser_conditionals($contents);					
+					$contents = $this->browser_conditionals($contents);
 				
 				$this->comment("included from $file");
 				echo $contents;
@@ -276,6 +290,7 @@ class trickyInc {
 		
 	}
 	
+	// includes everything at the path provided, is non-recursive
 	function include_all($path){
 		
 		$path = str_replace('*','',$path);
@@ -296,7 +311,7 @@ class trickyInc {
 			
 	}
 	
-	// filters receives contents as a reference, otherwise it wouldn't do anything
+	// filters receives contents as a reference so it can change them as needed
 	function filters(&$contents){
 		
 		if($dh = opendir('filters'))
@@ -342,7 +357,8 @@ class trickyInc {
 		
 	}
 	
-	// a quick file check, hopefully to stop anything dangerous, and make sure the file really exists	
+	// a utility file check for all included files
+	// hopefully to stop anything dangerous, and make sure the file really exists	
 	function file_check($file){
 		
 		// stuff we definitely don't want to see in a file name
