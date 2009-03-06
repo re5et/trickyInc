@@ -15,9 +15,6 @@ class trickyInc {
 		
 		// setup the default options, if you want different defaults, change them here
 		
-// The following options can be overridden via the query string assuming 
-// that $this->allow_query_string_override == true
-		
 		// include the browser styles reset before all other content (css only)
 		$this->options->reset = true;
 		
@@ -38,10 +35,18 @@ class trickyInc {
 		$this->options->inc = '';	
 		
 		// exclude any file containing any of these
-		// applys to includes, filters, constants
+		// applys to includes, filters, constants.
+		// disable this with 'false'
 		$this->options->exclude = array(
 			'.tmp', '.svn', '.project', '.bak'
 		);		
+		
+		// enables / disables output compression
+		// at the moment this is only runs for css
+		$this->options->compress_output = true;
+		
+		// enables / disables parsing of browser based conditionals
+		$this->options->browser_conditions = true;
 		
 		// say thanks via a comment at the very bottom of your final output
 		$this->options->plug = true;
@@ -50,21 +55,17 @@ class trickyInc {
 		// showing how long it took trickyInc to complete execution
 		$this->options->show_generated_time = true;
 		
-// The rest of the options here cannot be overridden via the query string. //
+		// enables / disables output of debug information at bottom of final output
+		$this->options->debug = false;		
 		
-		// enables / disables overrides from the query string
-		$this->allow_query_string_override = true;
+		// disables ability to alter these options via the query string
+		// disable this with false
+		$this->disable_override = array(
+			'comments', 'compress_output', 'excludes', 'debug'
+		);
 		
-		// enables / disables output compression
-		// at the moment this is only runs for css
-		$this->compress_output = true;
-		
-		// enables / disables parsing of browser based conditionals
-		$this->browser_conditions = true;
-		
-		// check for option overrides in the query string
-		if($this->allow_query_string_override)
-			$this->set_options();
+		// get the query string options ready for use.
+		$this->set_options();
 			
 		// grab some information about the browser
 		$this->browser = $this->get_browser();
@@ -79,6 +80,12 @@ class trickyInc {
 		// loop through the options, if any of them are in the query string override
 		foreach($this->options as $k => $v){
 			if(isset($_GET[$k]) && !is_array($this->options->{$k})){
+				
+				// if this option is in disable_override, don't set it
+				if(is_array($this->disable_override))
+					if(in_array($k, $this->disable_override))
+						continue;
+				
 				// this bit here makes sure that if you want something false it is
 				$false = array('n', 'no', '0', 'false');
 				if(in_array(strtolower($_GET[$k]), $false))
@@ -86,9 +93,6 @@ class trickyInc {
 				$this->options->{$k} = $_GET[$k];
 			}
 		}
-		
-		$this->options->constants = explode(',', $this->options->constants);
-		$this->inc = explode(',', $this->options->inc);
 		
 		// check if caching is on, and cache dir can be written in
 		if($this->options->cache && !is_writeable('cache/')){
@@ -149,7 +153,7 @@ class trickyInc {
 			$this->constants();
 		
 		// if there are included files	
-		if(is_array($this->inc))
+		if($this->options->inc)
 			$this->includes();
 			
 		// if you wanna plug trickyInc
@@ -170,6 +174,10 @@ class trickyInc {
 		// we are done at this point, so show how long
 		if($this->options->show_generated_time)
 			$this->show_generated_time();
+		
+		// if debug is enabled, spit it out
+		if($this->options->debug)
+			$this->debug();
 		
 	}
 	
@@ -233,7 +241,8 @@ class trickyInc {
 	
 	function constants(){
 		
-		foreach($this->options->constants as $to_include){
+		$constants = explode(',', $this->options->constants);
+		foreach($constants as $to_include){
 			$file = 'constants/' . $to_include . '.php';
 			if($this->file_check($file)){
 				require_once($file);
@@ -246,15 +255,17 @@ class trickyInc {
 	
 	function includes(){
 		
+		$includes = $this->options->inc = explode(',', $this->options->inc);
+		
 		// set the file extension for the includes based on type passed in
 		$ext = ($this->type == 'css') ? '.css' : '.js';
 		
-		foreach($this->inc as $key => &$include){
+		foreach($includes as $key => &$include){
 			if(strpos($include, '*') !== FALSE && strpos($include, '..') === FALSE){
 				if($add = $this->include_all($include))
-					array_splice($this->inc, $key, 1, $add);
+					array_splice($includes, $key, 1, $add);
 				else
-					unset($this->inc[$key]);
+					unset($includes[$key]);
 			}
 			elseif(!strpos($include, $ext))
 				$include .= $ext;
@@ -263,7 +274,7 @@ class trickyInc {
 		// was causing problems
 		unset($include);
 		
-		foreach($this->inc as $include){
+		foreach($includes as $include){
 			$file = 'includes/' . $include;
 			if($this->file_check($file)){
 				// get the file contents
@@ -279,7 +290,7 @@ class trickyInc {
 					$this->filters($contents);
 				
 				// if browser conditionals are on, parse them out
-				if($this->browser_conditions)
+				if($this->options->browser_conditions)
 					$contents = $this->browser_conditionals($contents);
 				
 				$this->comment("included from $file");
@@ -379,9 +390,9 @@ class trickyInc {
 	function show_generated_time(){
 		$current_time = microtime(true);
 		
-		$time_passed = $current_time - $this->start_time;
+		$seconds_passed = $current_time - $this->start_time;
 		
-		$this->comment("Generated in $time_passed seconds.");
+		$this->comment("Generated in $seconds_passed seconds.");
 	}
 	
 	// comment, padded appropriately
@@ -390,6 +401,34 @@ class trickyInc {
 		// check to see if comments are on
 		if($this->options->comments)
 			echo "\n/* " . str_pad($str . " ", 77, '*') . "*/\n";
+		
+	}
+	
+	// this can be used to grab get information from the 
+	// query string of the page including trickyInc
+	function get($key){
+		
+		$q_string = explode('?', $_SERVER['HTTP_REFERER']);
+		parse_str($q_string[1], $get);
+		
+		if(array_key_exists($key, $get)){
+			if($get[$key] || $get[$key] === 0)
+				return $get[$key];
+		}
+		return false;
+		
+	}
+	
+	
+	// dumps out debug information
+	function debug(){
+		
+		$trickyInc = get_object_vars($this);
+		$this->comment('trickyInc debug');
+		echo "/*\n\n";
+		var_dump($trickyInc);
+		echo "*/\n\n";
+		$this->comment('end of debug');
 		
 	}
 	
