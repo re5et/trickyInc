@@ -2,7 +2,9 @@
 
 class trickyInc {
 	
-	function __construct($type = false){
+	// type is css or js
+	// options are overrides for instantiation
+	function __construct($type = false, $options = false){
 		
 		// grab starting time for profiling
 		$this->start_time = microtime(true);
@@ -32,13 +34,13 @@ class trickyInc {
 		$this->options->constants = '';
 		
 		// default stylesheets to include, comma seperated without file extensions
-		$this->options->inc = '';	
+		$this->options->includes = '';	
 		
 		// exclude any file containing any of these
 		// applys to includes, filters, constants.
 		// disable this with 'false'
 		$this->options->exclude = array(
-			'.tmp', '.svn', '.project', '.bak'
+			'.tmp', '.svn', '.project', '.bak', 'READ_ME'
 		);		
 		
 		// enables / disables output compression
@@ -64,6 +66,14 @@ class trickyInc {
 			'comments', 'compress_output', 'excludes', 'debug'
 		);
 		
+		// if options are passed in during instantiation
+		// override option defaults defined above
+		if(is_array($options)){
+			foreach($options as $option_key => $option_value){
+				$this->options->$option_key = $option_value;
+			}
+		}
+		
 		// get the query string options ready for use.
 		$this->set_options();
 			
@@ -71,7 +81,7 @@ class trickyInc {
 		$this->browser = $this->get_browser();
 		
 		// if trickyInc has been instantiated, and its not by an extension, do ouput
-		if(__CLASS__ == get_class($this))
+		if(__CLASS__ === get_class($this))
 			$this->output();
 	}
 	
@@ -79,6 +89,8 @@ class trickyInc {
 		
 		// loop through the options, if any of them are in the query string override
 		foreach($this->options as $k => $v){
+			// here for backwards compatibility
+			$_GET['includes'] = $_GET['inc'];
 			if(isset($_GET[$k]) && !is_array($this->options->{$k})){
 				
 				// if this option is in disable_override, don't set it
@@ -149,11 +161,11 @@ class trickyInc {
 			$this->reset();
 		
 		// if constants are on, get the replacements ready
-		if($this->options->constants)
+		if($this->are_there('constants'))
 			$this->constants();
 		
 		// if there are included files	
-		if($this->options->inc)
+		if($this->are_there('includes'))
 			$this->includes();
 			
 		// if you wanna plug trickyInc
@@ -164,7 +176,7 @@ class trickyInc {
 		$final_output = ob_get_flush();
 		
 		// if caching is on
-		if($this->options->cache){
+		if($this->are_there('cache')){
 			
 			// write it to file
 			file_put_contents($file, $final_output);
@@ -179,6 +191,10 @@ class trickyInc {
 		if($this->options->debug)
 			$this->debug();
 		
+	}
+	
+	function are_there($option){
+		return ($this->options->{$option} && is_dir($option));
 	}
 	
 	function get_browser(){
@@ -255,7 +271,7 @@ class trickyInc {
 	
 	function includes(){
 		
-		$includes = $this->options->inc = explode(',', $this->options->inc);
+		$includes = explode(',', $this->options->includes);
 		
 		// set the file extension for the includes based on type passed in
 		$ext = ($this->type == 'css') ? '.css' : '.js';
@@ -286,7 +302,7 @@ class trickyInc {
 						$contents = str_replace('$'.$key, $value, $contents);
 				
 				// if filters is on, pass the contents
-				if($this->options->filter)
+				if($this->are_there('filters'))
 					$this->filters($contents);
 				
 				// if browser conditionals are on, parse them out
