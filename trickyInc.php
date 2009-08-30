@@ -11,7 +11,7 @@ class trickyInc {
 
 		// gotta have this, 'css' or 'js'
 		if($type != 'css' && $type != 'js'){
-			$this->comment('trickyInc must be called with the type argument, either "css" or "js"');
+			echo $this->comment('trickyInc must be called with the type argument, either "css" or "js"');
 			die;
 		}
 
@@ -32,14 +32,16 @@ class trickyInc {
 		$this->options->reset = true;
 
 		// send the contents of each include through the filters in the filters directory
-		$this->options->filter = true;
+		// if set to true, all filters found will be used, can also be an array of
+		// filters to be used.  disable filters with false
+		$this->options->filters = true;
 
 		// include comments regarding file inclusion
 		$this->options->comments = true;
 
 		// how many seconds to wait for a content refresh
 		// false / 0 turns caching off
-		$this->options->cache = false;
+		$this->options->cache = 0;
 
 		// default constants files to include, comma seperated without file extensions
 		$this->options->constants = '';
@@ -55,8 +57,11 @@ class trickyInc {
 		);		
 
 		// enables / disables output compression
-		// at the moment this is only runs for css
-		$this->options->compress_output = false;
+		// this will do whitespace minification atm
+		$this->options->minify_output = false;
+		
+		// ob_start callback, used for gzip compression
+		$this->options->ob_callback = '';
 
 		// enables / disables parsing of browser based conditionals
 		$this->options->browser_conditions = true;
@@ -73,8 +78,8 @@ class trickyInc {
 
 		// disables ability to alter these options via the query string
 		// disable this with false
-		$this->disable_override = array(
-			'comments', 'compress_output', 'excludes', 'debug'
+		$this->disable_query_override = array(
+			'excludes', 'filters'
 		);
 
 		// if options are passed in during instantiation
@@ -106,8 +111,8 @@ class trickyInc {
 			if(isset($_GET[$k]) && !is_array($this->options->{$k})){
 
 				// if this option is in disable_override, don't set it
-				if(is_array($this->disable_override))
-					if(in_array($k, $this->disable_override))
+				if(is_array($this->disable_query_override))
+					if(in_array($k, $this->disable_query_override))
 						continue;
 
 				// this bit here makes sure that if you want something false it is
@@ -119,12 +124,12 @@ class trickyInc {
 		}
 		
 		// no trickyInc comments if we are compressing
-		if($this->options->compress_output)
+		if($this->options->minify_output)
 			$this->options->comments = false;
 
 		// check if caching is on, and cache dir can be written in
 		if($this->options->cache && !is_writeable('cache/')){
-			$this->comment('cannot write cache, check the permissions on that directory');
+			echo $this->comment('cannot write cache, check the permissions on that directory');
 			// if not, turn caching off
 			$this->options->cache = false;
 		}
@@ -133,18 +138,25 @@ class trickyInc {
 
 	// calls individual methods to output stylesheet content
 	function output(){
-
+		
+		// start obfuscation so that we can write to cache if needed
+		ob_start($this->options->ob_callback);
+		
 		$type = ($this->type == 'css') ? 'css' : 'javascript';
+		
 		// set the right header
-		header("content-type:text/$type");
-
+		header("content-type:text/$type; charset: UTF-8");
+		
 		// if caching is on, make a static file in the correct cache directory
 		// based on the query string received.
 		if($this->options->cache){
 
-			$cache_key = md5($_SERVER['QUERY_STRING']);
-
-			$file = 'cache/' . $cache_key;
+			$cache_key = $_SERVER['QUERY_STRING'];
+			
+			if($this->options->browser_conditionals)
+				$cache_key .= serialize($this->browser);
+			
+			$file = 'cache/' . md5($cache_key);
 
 			// if a cached file exists, serve it up, do nothing else
 			if($this->file_check($file)){
@@ -169,9 +181,6 @@ class trickyInc {
 
 		}
 
-		// start obfuscation so that we can write to cache if needed
-		ob_start();
-
 		// if reset is true and this is css, include the reset
 		if($this->options->reset && $this->type == 'css')
 			$this->reset();
@@ -189,10 +198,7 @@ class trickyInc {
 			$this->plug();
 
 		// store the final output in a variable, and output it
-		$final_output = ob_get_clean();
-		
-		if($this->options->compress_output)
-			$final_output = $this->compress_output($final_output);
+		$final_output = ob_get_flush();
 
 		// if caching is on
 		if($this->are_there('cache')){
@@ -201,9 +207,6 @@ class trickyInc {
 			file_put_contents($file, $final_output);
 
 		}
-		
-		// all done
-		echo $final_output;
 
 		// if debug is enabled, spit it out
 		if($this->options->debug)
@@ -211,7 +214,7 @@ class trickyInc {
 
 		// we are done at this point, so show how long
 		if($this->options->show_generated_time)
-			$this->show_generated_time();;
+			$this->show_generated_time();
 
 	}
 
@@ -222,7 +225,7 @@ class trickyInc {
 	function get_browser(){
 
 		$file = $this->include_path . '/browscap.php';
-		if($this->file_check($file)){
+		if(is_file($file)){
 			require_once($file);
 			$bc = new Browscap($this->include_path . '/browscap-cache');
 			$this->browser = $bc->getBrowser();
@@ -232,9 +235,9 @@ class trickyInc {
 
 	function reset(){
 
-		$this->comment("css reset, via the king, http://meyerweb.com/eric/thoughts/2007/05/01/reset-reloaded/");
+		echo $this->comment("css reset, via the king, http://meyerweb.com/eric/thoughts/2007/05/01/reset-reloaded/");
 		echo 'html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-weight:inherit;font-style:inherit;font-size:100%;font-family:inherit;vertical-align:baseline}:focus{outline:0}body{line-height:1;color:black;background:white}ol,ul{list-style:none}table{border-collapse:separate;border-spacing:0}caption,th,td{text-align:left;font-weight:normal}blockquote:before,blockquote:after,q:before,q:after{content:""}blockquote,q{quotes:""""}';
-		$this->comment("end of css reset");
+		echo $this->comment("end of css reset");
 
 	}
 
@@ -273,31 +276,36 @@ class trickyInc {
 		// was causing problems
 		unset($include);
 
+		$contents = '';
+
 		foreach($includes as $include){
 			$file = 'includes/' . $include;
 			if($this->file_check($file)){
+				
+				$contents .= $this->comment("included from $file");
 				// get the file contents
-				$contents = file_get_contents($file);
-
-				// if constants are found in the include, replace appropriately
-				if(property_exists($this, 'constants'))
-					foreach($this->constants as $key => $value)
-						$contents = str_replace('$'.$key, $value, $contents);
-
-				// if filters is on, pass the contents
-				if($this->are_there('filters'))
-					$this->filters($contents);
-
-				// if browser conditionals are on, parse them out
-				if($this->options->browser_conditions)
-					$contents = $this->browser_conditionals($contents);
-
-				$this->comment("included from $file");
-				echo $contents;
-				$this->comment("end of $file");
+				$contents .= file_get_contents($file);
+				$contents .= $this->comment("end of $file");
 			}
 		}
+		
+		// if constants are found in the include, replace appropriately
+		if(property_exists($this, 'constants'))
+			foreach($this->constants as $key => $value)
+				$contents = str_replace('$'.$key, $value, $contents);
 
+		// if filters is on, pass the contents
+		if($this->are_there('filters'))
+			$this->filters($contents);
+
+		// if browser conditionals are on, parse them out
+		if($this->options->browser_conditions)
+			$contents = $this->browser_conditionals($contents);
+		
+		if($this->options->minify_output)
+			$contents = $this->minify_output($contents);
+		
+		echo $contents;
 	}
 
 	// includes everything at the path provided, is non-recursive
@@ -329,9 +337,12 @@ class trickyInc {
 				if($this->file_check('filters/' . $file)){
 					// grab the files name, which is the assumed name of the class
 					$class = substr($file, 0, strrpos($file, '.'));
-					require_once('filters/' . $file);
-					// if the included file has the class we are looking for, instantiate it
-					new $class($contents);
+					// if all filters are on, or this is a filter specified to run
+					if(!is_array($this->options->filters) || array_key_exists($class, $this->options->filters)){
+						require_once('filters/' . $file);
+						// if the included file has the class we are looking for, instantiate it
+						new $class($contents);
+					}
 				}
 
 	}
@@ -360,13 +371,13 @@ class trickyInc {
 
 				$include_it = true;
 
-				if(is_array($positive_conditions))
+				if(isset($positive_conditions) && is_array($positive_conditions))
 					foreach($positive_conditions as $condition => $value){
 						if($this->browser->{$condition} != $value)
 							$include_it = false;
 					}
 
-				if(is_array($negative_conditions))
+				if(isset($negative_conditions) && is_array($negative_conditions))
 					foreach($negative_conditions as $condition => $value){
 						if($this->browser->{$condition} == $value)
 							$include_it = false;
@@ -387,12 +398,13 @@ class trickyInc {
 
 		return $contents;
 
-	}	
+	}
 	
-	function compress_output($output){
+	function minify_output($output){
+		
 		if($this->include_path){
 			$min = $this->type . 'min';
-			if($this->file_check($this->include_path . "/$min.php")){
+			if(is_file($this->include_path . "/$min.php")){
 				require_once($this->include_path . "/$min.php");
 				$minifier = new $min($output);
 				return $minifier->minify($output);
@@ -404,7 +416,7 @@ class trickyInc {
 	// thank yous are always welcome
 	function plug(){
 
-		$this->comment("had some help from trickyInc: http://code.google.com/p/trickyinc/");
+		$this->comment("had some help from trickyInc: http://github.com/re5et/trickyInc/");
 
 	}
 
@@ -428,11 +440,13 @@ class trickyInc {
 	}
 
 	function show_generated_time(){
+		
 		$current_time = microtime(true);
 
 		$seconds_passed = $current_time - $this->start_time;
 
-		$this->comment("Generated in $seconds_passed seconds.");
+		echo $this->comment("Generated in $seconds_passed seconds.");
+		
 	}
 
 	// comment, padded appropriately
@@ -440,7 +454,7 @@ class trickyInc {
 
 		// check to see if comments are on
 		if($this->options->comments)
-			echo "\n/* " . str_pad($str . " ", 77, '*') . "*/\n";
+			return "\n/* " . str_pad($str . " ", 77, '*') . "*/\n";
 
 	}
 
@@ -463,11 +477,11 @@ class trickyInc {
 	function debug(){
 
 		$trickyInc = get_object_vars($this);
-		$this->comment('trickyInc debug');
+		echo $this->comment('trickyInc debug');
 		echo "/*\n\n";
 		var_dump($trickyInc);
 		echo "*/\n\n";
-		$this->comment('end of debug');
+		echo $this->comment('end of debug');
 
 	}
 	
